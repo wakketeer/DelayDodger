@@ -9,7 +9,7 @@ on:
     paths: ["site/**", "pipeline/**", ".github/workflows/**"]
 
 permissions:
-  contents: read
+  contents: write   # lets the job commit the summary CSVs in exports/
   pages: write
   id-token: write
 
@@ -59,6 +59,22 @@ jobs:
 
       - name: Validate against prototype fixture (DFW-GSO, AA, Jun 2025 - May 2026)
         run: node pipeline/validate_fixture.mjs
+
+      - name: Export summary CSVs
+        run: python pipeline/export_summary.py
+
+      - name: Commit summary CSVs to the repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add exports
+          if git diff --cached --quiet; then
+            echo "Summary CSVs unchanged"
+          else
+            git commit -m "Update summary exports"
+            git pull --rebase
+            git push
+          fi
 
       - uses: actions/configure-pages@v5
 
