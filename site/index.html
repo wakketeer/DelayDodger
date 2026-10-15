@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>DelayDodger</title>
+  <meta name="description" content="How often flights on any US route run late or get cancelled, why, and when to fly to avoid it. Built on US DOT on-time data.">
+  <meta name="theme-color" content="#2E3952">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="masthead">
+    <div class="wrap">
+      <h1 class="brand">Delay<span>Dodger</span></h1>
+      <p class="tagline">Pick a route. See how often it runs late, why, and when to fly to dodge it.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="controls card" aria-label="Route selection">
+      <div class="row route-row">
+        <label class="field">
+          <span>From</span>
+          <select id="apA"></select>
+        </label>
+        <button id="swap" class="swap" type="button" aria-label="Swap airports" title="Swap airports">⇄</button>
+        <label class="field">
+          <span>To</span>
+          <select id="apB"></select>
+        </label>
+      </div>
+      <div class="row">
+        <label class="field">
+          <span>Airline</span>
+          <select id="carrier"></select>
+        </label>
+      </div>
+      <div class="row two">
+        <label class="field">
+          <span>From month</span>
+          <select id="mFrom"></select>
+        </label>
+        <label class="field">
+          <span>To month</span>
+          <select id="mTo"></select>
+        </label>
+      </div>
+      <div class="row">
+        <div class="seg" id="dirSeg" role="radiogroup" aria-label="Direction"></div>
+      </div>
+    </section>
+
+    <div id="status" class="status" role="status"></div>
+
+    <div id="results" hidden>
+      <h2 id="routeTitle" class="route-title"></h2>
+      <p id="routeSub" class="route-sub"></p>
+
+      <section class="kpis" id="kpis" aria-label="Headline numbers"></section>
+
+      <section class="card recs" aria-labelledby="h-recs">
+        <h3 id="h-recs">How to dodge delays on this route</h3>
+        <div id="recs"></div>
+      </section>
+
+      <div class="grid">
+        <section class="card" aria-labelledby="h-base">
+          <h3 id="h-base">How this route compares</h3>
+          <p class="note">Same months, all airlines unless noted.</p>
+          <div id="baseline"></div>
+        </section>
+
+        <section class="card" aria-labelledby="h-dir">
+          <h3 id="h-dir">By direction</h3>
+          <p class="note">Departure times are local to each origin airport.</p>
+          <div id="direction"></div>
+        </section>
+      </div>
+
+      <section class="card" aria-labelledby="h-hour">
+        <h3 id="h-hour">Late arrivals by scheduled departure hour</h3>
+        <p class="note">Delays cascade through the day. Dashed line = route average.</p>
+        <div id="hours"></div>
+        <div id="banks" class="banks"></div>
+      </section>
+
+      <section class="card" aria-labelledby="h-cause">
+        <h3 id="h-cause">What causes the delays</h3>
+        <p class="note">Over flights that arrived 15+ minutes late.</p>
+        <div id="causes"></div>
+      </section>
+
+      <section class="card" aria-labelledby="h-flights">
+        <h3 id="h-flights">Flight-number leaderboard</h3>
+        <p class="note">Flights with 10+ scheduled operations in the window.</p>
+        <div class="seg small" id="flightSeg" role="radiogroup" aria-label="Sort"></div>
+        <div id="flights"></div>
+      </section>
+
+      <div class="grid">
+        <section class="card" aria-labelledby="h-month">
+          <h3 id="h-month">Month by month</h3>
+          <div id="months"></div>
+        </section>
+        <section class="card" aria-labelledby="h-dow">
+          <h3 id="h-dow">Day of week</h3>
+          <div id="dows"></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap">
+      <p id="dataNote"></p>
+      <p>Source: US DOT Bureau of Transportation Statistics, Reporting Carrier On-Time Performance. “Late” means arriving 15+ minutes after schedule. Rates on fewer than 30 flights are flagged <span class="thin-chip">low sample</span>.</p>
+      <a class="evolv" href="https://evolv.consulting" target="_blank" rel="noopener">
+        <span>Built by</span>
+        <img src="assets/evolv-logo.svg" alt="evolv Consulting" class="logo-light">
+        <img src="assets/evolv-logo-white.svg" alt="evolv Consulting" class="logo-dark">
+      </a>
+    </div>
+  </footer>
+
+  <div id="tip" class="tip" role="tooltip" hidden></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
