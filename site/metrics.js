@@ -17,6 +17,43 @@ export const BANKS = [
 
 const div = (a, b) => (b > 0 ? a / b : null);
 
+/* ---------- Flight score ----------
+   0–100, higher = more reliable. Starts at 100 and subtracts:
+     • 1 pt per % of flights arriving 15+ min late
+     • 3 pts per % cancelled (a cancellation costs a traveler far more than a delay)
+     • 0.5 pt per minute of average arrival delay, capped at 20 pts (catches flights that are
+       late less often but by a lot)
+   Each rate is shrunk toward the route average for that direction, weighted as if the route
+   had flown SCORE_PRIOR_OPS extra trips, so a flight with 0 of 44 late gets a strong score but
+   not a perfect one. Grade bands are fixed so an "A" means the same thing on every route. */
+export const SCORE_PRIOR_OPS = 20;
+export const SCORE_W = { late: 100, canc: 300, minPerPt: 0.5, delayCap: 20 };
+export const GRADES = [
+  { g: "A", min: 85, label: "Very reliable" },
+  { g: "B", min: 75, label: "Reliable" },
+  { g: "C", min: 65, label: "Average" },
+  { g: "D", min: 50, label: "Unreliable" },
+  { g: "F", min: 0, label: "Very unreliable" },
+];
+export const gradeFor = (score) => (score == null ? null : GRADES.find((x) => score >= x.min));
+
+// f: { sched, canc, flown, d15, narr, sarr }; prior: kpis() of the route in the same direction.
+export function flightScore(f, prior) {
+  const k = SCORE_PRIOR_OPS;
+  const shrink = (num, den, p) => (p == null ? div(num, den) : (num + k * p) / (den + k));
+  const late = shrink(f.d15, f.flown, prior?.delayRate);
+  const canc = shrink(f.canc, f.sched, prior?.cancRate);
+  const avgArr = shrink(f.sarr, f.narr, prior?.meanArr);
+  if (late == null || canc == null) return null;
+  const pts = {
+    late: SCORE_W.late * late,
+    canc: SCORE_W.canc * canc,
+    delay: Math.min(SCORE_W.delayCap, SCORE_W.minPerPt * Math.max(0, avgArr || 0)),
+  };
+  const score = Math.round(Math.max(0, Math.min(100, 100 - pts.late - pts.canc - pts.delay)));
+  return { score, grade: gradeFor(score), pts, adj: { late, canc, avgArr } };
+}
+
 // Indices of rows in a columnar table that match the selection.
 // sel = { carrier: "" | "AA", mi0, mi1, dir: "both" | 0 | 1 }
 export function select(t, sel, { ignoreDir = false } = {}) {
@@ -102,6 +139,7 @@ function cut(t, idx, key, keys) {
 
 export function flights(route, sel) {
   const t = route.f;
+  const prior = [0, 1].map((d) => kpis(route, select(route.m, { ...sel, dir: d })));
   const idx = select(t, sel);
   const acc = new Map();
   for (const i of idx) {
@@ -117,7 +155,7 @@ export function flights(route, sel) {
     .map((a) => {
       const dep = [...a.deps.entries()].sort((x, y) => y[1] - x[1])[0][0];
       delete a.deps;
-      return { ...a, dep, delayRate: div(a.d15, a.flown), cancRate: div(a.canc, a.sched), meanArr: div(a.sarr, a.narr) };
+      return { ...a, dep, delayRate: div(a.d15, a.flown), cancRate: div(a.canc, a.sched), meanArr: div(a.sarr, a.narr), ...flightScore(a, prior[a.dir]) };
     });
 }
 
@@ -185,14 +223,15 @@ export function recommend(route, sel, meta) {
   if (timeLines.length) recs.push({ title: "Best time to depart", body: timeLines.join(" ") });
 
   // 2. Flights to pick / avoid
-  const fl = S.flights.filter((f) => f.delayRate != null);
+  const fl = S.flights.filter((f) => f.score != null);
   if (fl.length >= 2) {
-    const sorted = [...fl].sort((a, b) => a.delayRate - b.delayRate);
+    const sorted = [...fl].sort((a, b) => b.score - a.score);
     const name = (f) => `${f.c} ${f.fn} (${label(f.dir)}, ${fmtTime(f.dep)})`;
+    const desc = (f) => `${name(f)}, score ${f.score} (${f.grade.g}), ${pct(f.delayRate)} late`;
     const best = sorted.slice(0, Math.min(2, sorted.length));
-    const worst = sorted.slice(-2).reverse().filter((f) => f.delayRate > (S.all.delayRate || 0) + 0.05 && !best.includes(f));
-    let body = `Most reliable: ${best.map((f) => `${name(f)} at ${pct(f.delayRate)} late`).join("; ")}.`;
-    if (worst.length) body += ` Avoid: ${worst.map((f) => `${name(f)} at ${pct(f.delayRate)} late`).join("; ")}.`;
+    const worst = sorted.slice(-2).reverse().filter((f) => f.score < 50 && !best.includes(f));
+    let body = `Most reliable: ${best.map(desc).join("; ")}.`;
+    if (worst.length) body += ` Avoid: ${worst.map(desc).join("; ")}.`;
     recs.push({ title: "Flights to book and avoid", body });
   }
 

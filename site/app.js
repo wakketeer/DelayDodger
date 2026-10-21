@@ -1,5 +1,5 @@
 import {
-  summarize, recommend, baseline, fmtTime, monthLabel, CAUSE_KEYS, DOW, MIN_N,
+  summarize, recommend, baseline, fmtTime, monthLabel, CAUSE_KEYS, DOW, MIN_N, GRADES,
 } from "./metrics.js";
 
 const $ = (id) => document.getElementById(id);
@@ -351,19 +351,35 @@ function fillFlightSeg() {
     `<button type="button" role="radio" data-v="${v}" aria-checked="${state.flightSort === v}">${l}</button>`).join("");
 }
 
+const signed = (x) => (x == null ? "–" : `${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(Math.round(x))} min`);
+
+function scoreTip(f) {
+  const p = f.pts;
+  return `<b>${f.c} ${f.fn} · ${f.score} (${f.grade.g}) ${f.grade.label}</b><br>` +
+    `Starts at 100<br>` +
+    `−${p.late.toFixed(0)} late arrivals (${pct(f.delayRate, 0)} actual)<br>` +
+    `−${p.canc.toFixed(0)} cancellations (${pct(f.cancRate, 1)} actual)<br>` +
+    `−${p.delay.toFixed(0)} delay length (avg arrival ${signed(f.meanArr)})` +
+    (f.sched < 60 ? `<br><i>${f.sched} flights: blended toward the route average</i>` : "");
+}
+
 function renderFlights(S) {
-  const fl = S.flights.filter((f) => f.delayRate != null);
+  const fl = S.flights.filter((f) => f.score != null);
   if (!fl.length) { $("flights").innerHTML = `<p class="empty-msg">No flight number has 10+ operations in this selection.</p>`; return; }
-  const sorted = [...fl].sort((a, b) => state.flightSort === "best" ? a.delayRate - b.delayRate || a.cancRate - b.cancRate : b.delayRate - a.delayRate || b.cancRate - a.cancRate);
+  const sorted = [...fl].sort((a, b) => state.flightSort === "best"
+    ? b.score - a.score || a.delayRate - b.delayRate
+    : a.score - b.score || b.delayRate - a.delayRate);
   const shown = state.showAllFlights ? sorted : sorted.slice(0, 8);
-  $("flights").innerHTML = `<div class="tbl-wrap"><table>
-    <thead><tr><th>Flight</th><th>Departs</th><th>Ops</th><th>Late</th><th>Canc.</th><th>Avg arr.</th></tr></thead>
+  $("flights").innerHTML = `<div class="tbl-wrap"><table class="flt">
+    <thead><tr><th>Flight</th><th>Score</th><th>Departs</th><th class="ops">Ops</th><th>Late</th><th>Canc.</th><th>Avg arr.</th></tr></thead>
     <tbody>${shown.map((f) => `<tr>
       <td class="fl">${f.c} ${f.fn}<span class="sub">${dirLabel(f.dir)}</span></td>
-      <td>${fmtTime(f.dep)}</td><td>${num(f.sched)}</td><td>${pct(f.delayRate, 0)}</td><td>${pct(f.cancRate, 0)}</td>
+      <td><span class="score g-${f.grade.g}" data-tip="${esc(scoreTip(f))}" tabindex="0" aria-label="Score ${f.score} of 100, grade ${f.grade.g}, ${f.grade.label}">${f.score}<i>${f.grade.g}</i></span></td>
+      <td>${fmtTime(f.dep)}</td><td class="ops">${num(f.sched)}</td><td>${pct(f.delayRate, 0)}</td><td>${pct(f.cancRate, 0)}</td>
       <td>${f.meanArr == null ? "–" : `${f.meanArr > 0 ? "+" : ""}${Math.round(f.meanArr)}m`}</td></tr>`).join("")}</tbody>
   </table></div>
-  ${sorted.length > 8 ? `<button class="more" type="button" id="moreFlights">${state.showAllFlights ? "Show fewer" : `Show all ${sorted.length} flights`}</button>` : ""}`;
+  ${sorted.length > 8 ? `<button class="more" type="button" id="moreFlights">${state.showAllFlights ? "Show fewer" : `Show all ${sorted.length} flights`}</button>` : ""}
+  <div class="grade-key">${GRADES.map((g, i) => `<span><span class="score g-${g.g}">${g.g}</span>${i === 0 ? `${g.min}+` : i === GRADES.length - 1 ? `under ${GRADES[i - 1].min}` : `${g.min}–${GRADES[i - 1].min - 1}`}</span>`).join("")}</div>`;
   $("moreFlights")?.addEventListener("click", () => { state.showAllFlights = !state.showAllFlights; renderFlights(S); });
 }
 
@@ -408,14 +424,14 @@ function wireTooltip() {
     if (el && el.dataset.tip) show(el, e.clientX, e.clientY); else if (!pinned) hide();
   });
   document.addEventListener("click", (e) => {
-    const el = e.target.closest(".col[data-tip], .hb[data-tip]");
+    const el = e.target.closest(".col[data-tip], .hb[data-tip], .score[data-tip]");
     if (!el || el === pinned) { pinned = null; hide(); return; }
     hide(); pinned = el; el.classList.add("on");
     const r = el.getBoundingClientRect();
     show(el, r.left + r.width / 2, r.top + 20);
   });
   document.addEventListener("focusin", (e) => {
-    const el = e.target.closest(".col[data-tip]");
+    const el = e.target.closest(".col[data-tip], .score[data-tip]");
     if (el) { const r = el.getBoundingClientRect(); show(el, r.left + r.width / 2, r.top + 20); }
   });
   window.addEventListener("scroll", () => { if (pinned) { pinned = null; hide(); } }, { passive: true });
